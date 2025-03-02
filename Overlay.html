@@ -1,0 +1,28 @@
+<html>
+        <head>
+            <style>
+                body {
+                    background: rgba(0, 0, 0, 0);
+                    color: white;
+                    font-family: Arial, sans-serif;
+                    font-size: 20px;
+                    position: absolute;
+                    top: 10px;
+                    left: 10px;
+                }
+            </style>
+            <script>
+                const { ipcRenderer } = require('electron');
+                ipcRenderer.on('updateOverlay', (event, state) => {
+                    document.getElementById('overlay').innerHTML = `
+                        <div>Mario HP: ${state.mario.hp}</div>
+                        <div>Stars: ${state.run.stars}</div>
+                        <div>Position: X:${state.mario.pos.x.toFixed(2)} Y:${state.mario.pos.y.toFixed(2)} Z:${state.mario.pos.z.toFixed(2)}</div>
+                        <div>Level ID: ${state.game.level_id}</div>`;
+                });
+            </script>
+        </head>
+        <body>
+            <div id="overlay">Loading...</div>
+        </body>
+        </html>`);
