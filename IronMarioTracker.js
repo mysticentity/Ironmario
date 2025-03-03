@@ -1,5 +1,19 @@
 // Project64 JavaScript Tracker Script (Mirrors IronMarioTracker.lua)
 
+var child_process = require('child_process');
+
+function startElectronOverlay() {
+    var electronProcess = child_process.spawn('cmd.exe', ['/c', 'start npm start'], {
+        cwd: '`file://${__dirname}/electron`',
+        detached: true,
+        stdio: 'ignore'
+    });
+
+    electronProcess.unref(); // Allows the process to keep running after Project64 exits
+}
+
+startElectronOverlay();
+
 // Memory address configuration
 const CONFIG = {
     MEM: {
@@ -52,7 +66,9 @@ function updateState() {
         mem.f32[CONFIG.MEM.MARIO.POS + 4],
         mem.f32[CONFIG.MEM.MARIO.POS + 8]
     ];
+    console.log(state)
     state.mario.pos = { x: pos[0], y: pos[1], z: pos[2] };
+    
 }
 
 setInterval(updateState, 1000);
@@ -62,8 +78,9 @@ var server = new Server();
 server.listen(1337, "127.0.0.1");
 
 server.on('connection', function(connection) {
-    const outputer = setInterval(() => {
+    var outputer = setInterval(function() {
         connection.write(JSON.stringify(state));
     }, 1000);
-    connection.on('close', () => { clearInterval(outputer); });
+    
+    connection.on('close', function() { clearInterval(outputer); });
 });
