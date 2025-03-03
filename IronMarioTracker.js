@@ -30,7 +30,7 @@ CONFIG.MEM.HUD = {
 };
 
 // State tracking
-let state = {
+var state = {
     mario: {},
     game: {},
     run: {
@@ -47,7 +47,7 @@ function updateState() {
     state.mario.hp = mem.u16[CONFIG.MEM.HUD.HEALTH];
     state.run.stars = mem.u16[CONFIG.MEM.HUD.STARS];
     
-    let pos = [
+    var pos = [
         mem.f32[CONFIG.MEM.MARIO.POS],
         mem.f32[CONFIG.MEM.MARIO.POS + 4],
         mem.f32[CONFIG.MEM.MARIO.POS + 8]
