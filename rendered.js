@@ -1,4 +1,4 @@
-const { ipcRenderer } = require("electron");
+var { ipcRenderer } = require("electron");
 
 // Update overlay with live data
 ipcRenderer.on("updateData", (event, gameState) => {
