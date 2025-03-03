@@ -4,7 +4,7 @@ var child_process = require('child_process');
 
 function startElectronOverlay() {
     var electronProcess = child_process.spawn('cmd.exe', ['/c', 'start npm start'], {
-        cwd: '`file://${__dirname}/electron`',
+        cwd: '`file://${__dirname}/electron.js`',
         detached: true,
         stdio: 'ignore'
     });
