@@ -12,7 +12,6 @@
                 }
             </style>
             <script>
-                const { ipcRenderer } = require('electron');
                 ipcRenderer.on('updateOverlay', (event, state) => {
                     document.getElementById('overlay').innerHTML = `
                         <div>Mario HP: ${state.mario.hp}</div>
