@@ -1,34 +1,16 @@
-const net = require('net');
-const { ipcRenderer } = require('electron');
-const { app, BrowserWindow, ipcMain } = require('electron');
-let mainWindow;
+var { app, BrowserWindow, ipcMain } = require('electron');
+var net = require('net');
+var EventEmitter = require('events');
 
-// Memory address configuration
-const CONFIG = {
-    MEM: {
-@@ -72,39 +67,3 @@ server.on('connection', function(connection) {
-    }, 1000);
-    connection.on('close', () => { clearInterval(outputer); });
-});
+class DataEmitter extends EventEmitter {}
+var dataEmitter = new DataEmitter();
 
-// Electron client to receive data and render overlay
-const client = net.createConnection({ port: 1337 }, () => {
-    console.log('Connected to server');
-});
+var mainWindow;
 
-client.on('data', (data) => {
-    ipcRenderer.send('gameStateUpdate', JSON.parse(data));
-});
-
-client.on('end', () => {
-    console.log('Disconnected from server');
-});
-
-// Create Electron window
-app.whenReady().then(() => {
+function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 400,
+        height: 200,
         transparent: true,
         frame: false,
         alwaysOnTop: true,
@@ -37,7 +19,41 @@ app.whenReady().then(() => {
             contextIsolation: false
         }
     });
-    mainWindow.loadURL(`file://${__dirname}/overlay.html`);
+    
+    mainWindow.loadFile('Overlay.html');
+}
+
+app.whenReady().then(function () {
+    createWindow();
+    setupTCPServer();
+
+    app.on('activate', function () {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createWindow();
+        }
+    });
+});
+
+function setupTCPServer() {
+    var server = net.createServer(function (socket) {
+        socket.on('data', function (data) {
+            var message = data.toString();
+            dataEmitter.emit('update', message);
+            if (mainWindow) {
+                mainWindow.webContents.send('data-update', message);
+            }
+        });
+    });
+
+    server.listen(8080, '127.0.0.1', function () {
+        console.log('TCP server listening on port 8080');
+    });
+}
+
+ipcMain.on('request-update', function (event) {
+    dataEmitter.once('update', function (data) {
+        event.reply('data-update', data);
+    });
 });
 
 // Handle game state updates in renderer process
