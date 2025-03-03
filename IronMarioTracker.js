@@ -1,15 +1,14 @@
 // Project64 JavaScript Tracker Script (Mirrors IronMarioTracker.lua)
 
-var child_process = require('child_process');
-
 function startElectronOverlay() {
-    var electronProcess = child_process.spawn('cmd.exe', ['/c', 'start npm start'], {
-        cwd: '`file://${__dirname}/electron.js`',
-        detached: true,
-        stdio: 'ignore'
-    });
+    var command = 'cmd.exe /c start ""electron.js'; // Start Electron.js instead of batch file
 
-    electronProcess.unref(); // Allows the process to keep running after Project64 exits
+    // Execute the command using Project64's built-in exec function
+    exec(command, {
+        cwd: "./",  // Ensure correct working directory
+        detached: true, // Run in a separate process
+        stdio: 'ignore' // Ignore output (optional)
+    });
 }
 
 startElectronOverlay();
