@@ -1,17 +1,18 @@
 // Project64 JavaScript Tracker Script (Mirrors IronMarioTracker.lua)
-
 function startElectronOverlay() {
-    var command = 'cmd.exe /c start ""electron.js'; // Start Electron.js instead of batch file
+    var command = 'cmd.exe /c start ""package.json'; // Start Electron.js instead of batch file
 
     // Execute the command using Project64's built-in exec function
     exec(command, {
-        cwd: "./",  // Ensure correct working directory
+        cwd: "./scripts",  // Ensure correct working directory
         detached: true, // Run in a separate process
         stdio: 'ignore' // Ignore output (optional)
     });
 }
 
 startElectronOverlay();
+
+
 
 // Memory address configuration
 const CONFIG = {
