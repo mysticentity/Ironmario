@@ -8,6 +8,7 @@
 
 using namespace ultralight;
 
+
 // Memory Addresses
 #define MARIO_BASE 0x1A0340
 #define HUD_BASE 0x1A0330
