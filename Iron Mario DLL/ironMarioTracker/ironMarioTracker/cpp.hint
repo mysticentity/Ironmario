@@ -1,2 +1,0 @@
-#define IRONMARIOTRACKER_API __declspec(dllexport)
-#define IRONMARIOTRACKER_API __declspec(dllimport)
