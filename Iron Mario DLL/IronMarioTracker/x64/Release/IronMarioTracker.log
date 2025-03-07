@@ -1,0 +1,8 @@
+﻿  The vcpkg manifest was disabled, but we found a manifest file in C:\Users\igetp\OneDrive\Desktop\IronMarioTracker\IronMarioTracker\. You may want to enable vcpkg manifests in your properties page or pass /p:VcpkgEnableManifest=true to the msbuild invocation.
+  IronMarioTracker.cpp
+  Generating code
+  11 of 345 functions ( 3.2%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    7 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  IronMarioTracker.vcxproj -> C:\Users\igetp\OneDrive\Desktop\IronMarioTracker\IronMarioTracker\x64\Release\IronMarioTracker.exe
