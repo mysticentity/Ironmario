@@ -345,7 +345,7 @@ void renderOverlay() {
     std::cout << "Creating overlay window..." << std::endl;
 
     // Create window (style set to None for transparency)
-    sf::RenderWindow window(sf::VideoMode(400, 250), "IronMario Tracker Overlay", sf::Style::None);
+    sf::RenderWindow window(sf::VideoMode(800, 600), "IronMario Tracker Overlay", sf::Style::None);
 
     if (!window.isOpen()) {
         std::cerr << "Failed to create overlay window." << std::endl;
@@ -353,24 +353,20 @@ void renderOverlay() {
     }
     std::cout << "Overlay window successfully created." << std::endl;
 
-    window.setPosition(sf::Vector2i(500, 300));  // Ensure it's visible
-
+    window.setPosition(sf::Vector2i(100, 100));  // Ensure it's visible
+    std::cout << "Window size: " << window.getSize().x << "x" << window.getSize().y << std::endl;
+    std::cout << "Window position: " << window.getPosition().x << ", " << window.getPosition().y << std::endl;
     // Get window handle
     HWND hwnd = window.getSystemHandle();
-    std::cout << "Window handle acquired." << std::endl;
-
-    // Set window transparency attributes
-    LONG style = GetWindowLong(hwnd, GWL_EXSTYLE);
-    std::cout << "Initial style: " << std::hex << style << std::endl;
-
     SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TOPMOST | WS_EX_LAYERED);
-    std::cout << "Updated window style for transparency." << std::endl;
+    std::cout << "Applied WS_EX_LAYERED." << std::endl;
 
     if (!SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA)) {
-        std::cerr << "Failed to set layered window attributes. Error: " << GetLastError() << std::endl;
-        return;
+        std::cerr << "Failed to apply transparency! Error: " << GetLastError() << std::endl;
     }
-    std::cout << "Window transparency applied." << std::endl;
+    else {
+        std::cout << "Transparency applied successfully." << std::endl;
+    }
 
     // Load font
    
@@ -390,42 +386,54 @@ void renderOverlay() {
     title.setPosition(10, 10);
     title.setFillColor(sf::Color::White);
 
+    sf::Text attempts("Attempts: " + std::to_string(state.attempts), font, 18);
+    attempts.setPosition(10, 40);
+    attempts.setFillColor(sf::Color::White);
+
+    sf::Text stars("Stars: " + std::to_string(state.currentStars), font, 18);
+    stars.setPosition(10, 70);
+    stars.setFillColor(sf::Color::Yellow);
+
+    sf::Text pb("PB Stars: " + std::to_string(state.pbStars), font, 18);
+    pb.setPosition(10, 100);
+    pb.setFillColor(sf::Color::Green);
+
+    sf::Text songTitle("Song: Not Available", font, 18);
+    songTitle.setPosition(10, 130);
+    songTitle.setFillColor(sf::Color::Cyan);
+
+    std::cout << "Drawing text: " << title.getString().toAnsiString() << std::endl;
+    // Test if pollEvent() is freezing
+    std::cout << "Polling event before loop..." << std::endl;
+    sf::Event event;
+    window.pollEvent(event);  // Single event poll test
+    std::cout << "Polling done." << std::endl;
+
     std::cout << "Entering render loop..." << std::endl;
-    while (window.isOpen()) {
-        sf::Event event;
-        while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed)
-                window.close();
-        }
-        sf::Text attempts("Attempts: " + std::to_string(state.attempts), font, 18);
-        attempts.setPosition(10, 40);
-        attempts.setFillColor(sf::Color::White);
-
-        state.currentStars = readMemory(CONFIG::MEM_HUD::STARS);
-        sf::Text stars("Stars: " + std::to_string(state.currentStars), font, 18);
-        stars.setPosition(10, 70);
-        stars.setFillColor(sf::Color::Yellow);
-
-        sf::Text pb("PB Stars: " + std::to_string(state.pbStars), font, 18);
-        pb.setPosition(10, 100);
-        pb.setFillColor(sf::Color::Green);
-
-        
-    }
-
-    std::cout << "Entering render loop..." << std::endl;
 
     while (window.isOpen()) {
+        std::cout << "Inside render loop..." << std::endl;
+
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
                 std::cout << "Window close event detected!" << std::endl;
                 window.close();
             }
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape) {
+                std::cout << "Escape key pressed! Closing window." << std::endl;
+                window.close();
+            }
         }
+
+        std::cout << "Rendering frame..." << std::endl;  // Debugging output
+
         
-        window.clear(sf::Color::Transparent);
+        window.clear(sf::Color::Red);
         window.draw(title);
+        window.draw(attempts);
+        window.draw(stars);
+        window.draw(pb);
         window.display();
     }
 
@@ -434,20 +442,24 @@ void renderOverlay() {
     std::cout << "Exiting renderOverlay()..." << std::endl;
     }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    std::cout << "Starting IronMario Tracker..." << std::endl; // Debug message
+    int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+        std::cout << "Starting IronMario Tracker..." << std::endl; // Debug message
 #else
 int main() {
 #endif
+    std::cout << "Starting IronMario Tracker..." << std::endl; // Debug message
+
     readAttemptsFile();
     readPBStarsFile();
     readConfig();
 
-    state.currentStars = 5;
+    state.currentStars = readMemory(CONFIG::MEM_HUD::STARS);
     state.startTime = time(0);
+
     std::cout << "Calling renderOverlay()..." << std::endl; // Debug message
     renderOverlay();
     std::cout << "Overlay closed." << std::endl; // Debug message
+
     state.endTime = time(0);
     writeConfig();
     writeAttemptsFile();
@@ -455,3 +467,5 @@ int main() {
 
     return 0;
 }
+
+
