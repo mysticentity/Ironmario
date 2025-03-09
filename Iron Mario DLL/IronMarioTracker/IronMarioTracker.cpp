@@ -14,12 +14,13 @@
 
 // Memory Addresses
 struct MEM {
-    static constexpr uintptr_t MARIO_BASE = 0x1a0340;
-    static constexpr uintptr_t HUD_BASE = 0x1a0330;
-    static constexpr uintptr_t CURRENT_LEVEL_ID = 0x18fd78;
+    static constexpr uintptr_t MARIO_BASE = 0x8033B170;
+    static constexpr uintptr_t HUD_BASE = 0xE00103E4;
+    static constexpr uintptr_t CURRENT_LEVEL_ID = 0x8033B24C;
     static constexpr uintptr_t CURRENT_SEED = 0x1Cdf80;
     static constexpr uintptr_t DELAYED_WARP_OP = 0x1a031c;
     static constexpr uintptr_t INTENDED_LEVEL_ID = 0x19f0cc;
+    static constexpr uintptr_t CURRENT_SONG_ID = 0xDFF0F438;
     
 };
 
@@ -39,6 +40,43 @@ struct CONFIG {
 struct MUSIC_DATA {
     static const std::unordered_map<int, std::string> SONG_MAP;
 };
+struct LEVEL_DATA {  
+    static const std::unordered_map<int, std::string> LEVEL_MAP;
+    };
+};
+
+// Define LEVEL_MAP
+    const std::unordered_map<int, std::string> CONFIG::LEVEL_DATA::LEVEL_MAP = {
+        {0, ""},
+        {1, "Menu", "Menu"},
+        {10, "Snowman's Land", "SL"},
+        {11, "Wet-Dry World", "WDW"},
+        {12, "Jolly Roger Bay", "JRB"},
+        {13, "Tiny-Huge Island", "THI"},
+        {14, "Tick Tock Clock", "TTC"},
+        {15, "Rainbow Ride", "RR"},
+        {16, "Outside Castle", "Outside"},
+        {17, "Bowser in the Dark World", "BitDW"},
+        {18, "Vanish Cap Under the Moat", "Vanish"},
+        {19, "Bowser in the Fire Sea", "BitFS"},
+        {20, "Secret Aquarium", "SA"},
+        {22, "Lethal Lava Land", "LLL"},
+        {23, "Dire, Dire Docks", "DDD"},
+        {24, "Whomp's Fortress", "WF"},
+        {26, "Garden","Garden"},
+        {27, "Peach's Slide" ,"PSS"},
+        {28, "Cavern of the Metal Cap", "Metal"},
+        {29, "Tower of the Wing Cap", "Wing"},
+        {30, "Bowser Fight 1", "Bower1"},
+        {31, "Wing Mario Over the Rainbow", "WMotR"},
+        {36, "Tall Tall Mountain", "TTM"},
+        {3626007, "Bowser in the Sky", "BitS"}, // Resolving duplicate keys
+        {4, "Big Boo's Haunt", "BBH"},
+        {5, "Cool Cool Mountain", "CCM"},
+        {6, "Castle", "Castle"},
+        {7, "Hazy Maze Cave", "HMC"},
+        {8, "Shifting Sand Land", "SSL"},
+        {9, "Bob-Omb Battlefield", "BoB"}
 };
 const std::unordered_map<int, std::string> CONFIG::MUSIC_DATA::SONG_MAP = {
     {12, "Super Mario 64 - Endless Staircase"},
@@ -341,6 +379,27 @@ void writeConfig() {
     }
 }
 
+#define MARIO_DEAD 0x00090013  // Example death state (modify as needed)
+#define MARIO_SPAWNING 0x000C0000  // Example respawn state (modify as needed)
+
+bool isDead = false;  // Track if Mario was in a death state
+
+void checkForNewAttempt() {
+    int marioAction = readMemory(CONFIG::MEM_MARIO::HURT_COUNTER);
+
+    if (marioAction == MARIO_DEAD) {
+        isDead = true;  // Mark Mario as dead
+    }
+
+    if (isDead && marioAction == MARIO_SPAWNING) {
+        // Mario has respawned -> count as a new attempt
+        state.attempts++;
+        std::cout << "New attempt started! Total attempts: " << state.attempts << std::endl;
+        writeAttemptsFile();  // Save immediately
+
+        isDead = false;  // Reset death flag
+    }
+}
 void renderOverlay() {
     std::cout << "Creating overlay window..." << std::endl;
 
@@ -368,6 +427,7 @@ void renderOverlay() {
         std::cout << "Transparency applied successfully." << std::endl;
     }
 
+
     // Load font
    
     sf::Font font;
@@ -382,27 +442,9 @@ void renderOverlay() {
     }
     std::cout << "Font loaded successfully." << std::endl;
 
-    sf::Text title("IronMario Tracker v" + config.version, font, 20);
-    title.setPosition(10, 10);
-    title.setFillColor(sf::Color::White);
+    
 
-    sf::Text attempts("Attempts: " + std::to_string(state.attempts), font, 18);
-    attempts.setPosition(10, 40);
-    attempts.setFillColor(sf::Color::White);
-
-    sf::Text stars("Stars: " + std::to_string(state.currentStars), font, 18);
-    stars.setPosition(10, 70);
-    stars.setFillColor(sf::Color::Yellow);
-
-    sf::Text pb("PB Stars: " + std::to_string(state.pbStars), font, 18);
-    pb.setPosition(10, 100);
-    pb.setFillColor(sf::Color::Green);
-
-    sf::Text songTitle("Song: Not Available", font, 18);
-    songTitle.setPosition(10, 130);
-    songTitle.setFillColor(sf::Color::Cyan);
-
-    std::cout << "Drawing text: " << title.getString().toAnsiString() << std::endl;
+    
     // Test if pollEvent() is freezing
     std::cout << "Polling event before loop..." << std::endl;
     sf::Event event;
@@ -425,15 +467,62 @@ void renderOverlay() {
                 window.close();
             }
         }
+        
+        // If current run has more stars than PB, update pbStars
+        if (state.currentStars > state.pbStars) {
+            std::cout << "New PB detected! Updating pbStars from " << state.pbStars
+                << " to " << state.currentStars << std::endl;
+            state.pbStars = state.currentStars;
+        }
 
+        // Increment attempts when a new run starts
+        state.attempts++;
+        std::cout << "New attempt recorded. Total attempts: " << state.attempts << std::endl;
+         
+        // Read the current song ID & Get Current Star Count
+        int currentSongID = readMemory(MEM::CURRENT_SONG_ID);
+        state.currentStars = readMemory(CONFIG::MEM_HUD::STARS);
+
+        // Find the song title in SONG_MAP
+        std::string songName = "Unknown Song";
+        auto it = CONFIG::MUSIC_DATA::SONG_MAP.find(currentSongID);
+        if (it != CONFIG::MUSIC_DATA::SONG_MAP.end()) {
+            songName = it->second;
+        }
+        
+        sf::Text title("IronMario Tracker v" + config.version, font, 20);
+        title.setPosition(10, 10);
+        title.setFillColor(sf::Color::White);
+
+        sf::Text attempts("Attempts: " + std::to_string(state.attempts), font, 18);
+        attempts.setPosition(10, 40);
+        attempts.setFillColor(sf::Color::White);
+
+        sf::Text stars("Stars: " + std::to_string(state.currentStars), font, 18);
+        stars.setPosition(10, 70);
+        stars.setFillColor(sf::Color::Yellow);
+
+        sf::Text pb("PB Stars: " + std::to_string(state.pbStars), font, 18);
+        pb.setPosition(10, 100);
+        pb.setFillColor(sf::Color::Green);
+        std::cout << "Drawing text: " << title.getString().toAnsiString() << std::endl;
+        // Update the song title text
+       
+        sf::Text songTitle("Song:" + songName, font, 18);
+        songTitle.setPosition(10, 130);
+        songTitle.setFillColor(sf::Color::Cyan);
+        songTitle.setString("Song: " + songName);
         std::cout << "Rendering frame..." << std::endl;  // Debugging output
 
         
-        window.clear(sf::Color::Red);
+
+        
+        window.clear(sf::Color::Transparent);
         window.draw(title);
         window.draw(attempts);
         window.draw(stars);
         window.draw(pb);
+        window.draw(songTitle);
         window.display();
     }
 
@@ -453,7 +542,7 @@ int main() {
     readPBStarsFile();
     readConfig();
 
-    state.currentStars = readMemory(CONFIG::MEM_HUD::STARS);
+    
     state.startTime = time(0);
 
     std::cout << "Calling renderOverlay()..." << std::endl; // Debug message
