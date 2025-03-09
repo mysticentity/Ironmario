@@ -16,7 +16,7 @@
 struct MEM {
     static constexpr uintptr_t MARIO_BASE = 0x8033B170;
     static constexpr uintptr_t HUD_BASE = 0xE00103E4;
-    static constexpr uintptr_t CURRENT_LEVEL_ID = 0x8033B24C;
+    static constexpr uintptr_t CURRENT_LEVEL_ID = 0xDFFFFD7A;
     static constexpr uintptr_t CURRENT_SEED = 0x1Cdf80;
     static constexpr uintptr_t DELAYED_WARP_OP = 0x1a031c;
     static constexpr uintptr_t INTENDED_LEVEL_ID = 0x19f0cc;
@@ -37,47 +37,15 @@ struct CONFIG {
         static constexpr uintptr_t HEALTH = MEM::HUD_BASE + 0x6;
     };
 
-struct MUSIC_DATA {
-    static const std::unordered_map<int, std::string> SONG_MAP;
-};
-struct LEVEL_DATA {  
-    static const std::unordered_map<int, std::string> LEVEL_MAP;
+    struct MUSIC_DATA {
+        static const std::unordered_map<int, std::string> SONG_MAP;
+    };
+    struct LEVEL_DATA {
+        static const std::unordered_map<int, std::string> LEVEL_MAP;
     };
 };
 
-// Define LEVEL_MAP
-    const std::unordered_map<int, std::string> CONFIG::LEVEL_DATA::LEVEL_MAP = {
-        {0, ""},
-        {1, "Menu", "Menu"},
-        {10, "Snowman's Land", "SL"},
-        {11, "Wet-Dry World", "WDW"},
-        {12, "Jolly Roger Bay", "JRB"},
-        {13, "Tiny-Huge Island", "THI"},
-        {14, "Tick Tock Clock", "TTC"},
-        {15, "Rainbow Ride", "RR"},
-        {16, "Outside Castle", "Outside"},
-        {17, "Bowser in the Dark World", "BitDW"},
-        {18, "Vanish Cap Under the Moat", "Vanish"},
-        {19, "Bowser in the Fire Sea", "BitFS"},
-        {20, "Secret Aquarium", "SA"},
-        {22, "Lethal Lava Land", "LLL"},
-        {23, "Dire, Dire Docks", "DDD"},
-        {24, "Whomp's Fortress", "WF"},
-        {26, "Garden","Garden"},
-        {27, "Peach's Slide" ,"PSS"},
-        {28, "Cavern of the Metal Cap", "Metal"},
-        {29, "Tower of the Wing Cap", "Wing"},
-        {30, "Bowser Fight 1", "Bower1"},
-        {31, "Wing Mario Over the Rainbow", "WMotR"},
-        {36, "Tall Tall Mountain", "TTM"},
-        {3626007, "Bowser in the Sky", "BitS"}, // Resolving duplicate keys
-        {4, "Big Boo's Haunt", "BBH"},
-        {5, "Cool Cool Mountain", "CCM"},
-        {6, "Castle", "Castle"},
-        {7, "Hazy Maze Cave", "HMC"},
-        {8, "Shifting Sand Land", "SSL"},
-        {9, "Bob-Omb Battlefield", "BoB"}
-};
+
 const std::unordered_map<int, std::string> CONFIG::MUSIC_DATA::SONG_MAP = {
     {12, "Super Mario 64 - Endless Staircase"},
     {13, "Super Mario 64 - Merry-Go-Round"},
@@ -235,6 +203,8 @@ const std::unordered_map<int, std::string> CONFIG::MUSIC_DATA::SONG_MAP = {
 {165, "Undertale - Spider Dance"},
 {166, "Undertale - Waterfall"}
 };
+
+
 
 
 // Function to convert wide string (WCHAR) to std::string
@@ -400,6 +370,19 @@ void checkForNewAttempt() {
         isDead = false;  // Reset death flag
     }
 }
+
+RECT GetProject64WindowRect() {
+    HWND hwnd = FindWindow(NULL, L"Project64"); // Adjust if the window title is different
+    RECT rect = { 0, 0, 800, 600 }; // Default size if not found
+
+    if (hwnd) {
+        GetWindowRect(hwnd, &rect);
+    }
+    else {
+        std::cerr << "Project64 window not found!" << std::endl;
+    }
+    return rect;
+}
 void renderOverlay() {
     std::cout << "Creating overlay window..." << std::endl;
 
@@ -412,7 +395,7 @@ void renderOverlay() {
     }
     std::cout << "Overlay window successfully created." << std::endl;
 
-    window.setPosition(sf::Vector2i(100, 100));  // Ensure it's visible
+    
     std::cout << "Window size: " << window.getSize().x << "x" << window.getSize().y << std::endl;
     std::cout << "Window position: " << window.getPosition().x << ", " << window.getPosition().y << std::endl;
     // Get window handle
@@ -420,7 +403,7 @@ void renderOverlay() {
     SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TOPMOST | WS_EX_LAYERED);
     std::cout << "Applied WS_EX_LAYERED." << std::endl;
 
-    if (!SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA)) {
+    if (!SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY)) {
         std::cerr << "Failed to apply transparency! Error: " << GetLastError() << std::endl;
     }
     else {
@@ -455,6 +438,13 @@ void renderOverlay() {
 
     while (window.isOpen()) {
         std::cout << "Inside render loop..." << std::endl;
+        RECT rect = GetProject64WindowRect();
+        window.setPosition(sf::Vector2i(rect.left, rect.top)); // Align with Project64
+        
+        // Ensure position updates only if valid
+        if (rect.right > rect.left && rect.bottom > rect.top) {
+            window.setPosition(sf::Vector2i(rect.left, rect.top));
+        }
 
         sf::Event event;
         while (window.pollEvent(event)) {
@@ -462,8 +452,9 @@ void renderOverlay() {
                 std::cout << "Window close event detected!" << std::endl;
                 window.close();
             }
-            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape) {
-                std::cout << "Escape key pressed! Closing window." << std::endl;
+            // Check if Project64 is still running
+            if (GetProject64PID() == 0) {
+                std::cout << "Project64 closed! Closing overlay." << std::endl;
                 window.close();
             }
         }
