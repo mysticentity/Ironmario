@@ -17,7 +17,7 @@ struct MEM {
     static constexpr uintptr_t MARIO_BASE = 0x8033B170;
     static constexpr uintptr_t HUD_BASE = 0xE00103E4;
     static constexpr uintptr_t CURRENT_LEVEL_ID = 0xDFFFFD7A;
-    static constexpr uintptr_t CURRENT_SEED = 0x1Cdf80;
+    static constexpr uintptr_t CURRENT_SEED = 0xDFEBCDCC;
     static constexpr uintptr_t DELAYED_WARP_OP = 0x1a031c;
     static constexpr uintptr_t INTENDED_LEVEL_ID = 0x19f0cc;
     static constexpr uintptr_t CURRENT_SONG_ID = 0xDFF0F438;
@@ -284,6 +284,7 @@ struct RunState {
     int pbStars = 0;
     int currentStars = 0;
     int currentSongID = 0;
+    int currentSeed = 0;
     time_t startTime;
     time_t endTime;
     std::unordered_map<std::string, std::string> warpMap;
@@ -466,7 +467,7 @@ void renderOverlay() {
     while (window.isOpen()) {
         std::cout << "Inside render loop..." << std::endl;
         checkForNewAttempt(); // Now only updates on real deaths
-        RECT rect = GetProject64WindowRect(); // Get game render area
+       RECT rect = GetProject64WindowRect(); // Get game render area
         window.setPosition(sf::Vector2i(rect.left, rect.top)); // Move overlay to game position
 
         // Keep overlay on top
@@ -502,6 +503,7 @@ void renderOverlay() {
         // Read the current song ID & Get Current Star Count
         int currentSongID = readMemory(MEM::CURRENT_SONG_ID);
         state.currentStars = readMemory(CONFIG::MEM_HUD::STARS);
+        state.currentSeed = readMemory(MEM::CURRENT_SEED);
 
         // Find the song title in SONG_MAP
         std::string songName = "Unknown Song";
@@ -514,22 +516,43 @@ void renderOverlay() {
         title.setPosition(10, 10);
         title.setFillColor(sf::Color::White);
 
-        sf::Text attempts("Attempts: " + std::to_string(state.attempts), font, 18);
+        sf::Text attempts("Attempts: " + std::to_string(state.attempts), font, 16);
         attempts.setPosition(10, 40);
         attempts.setFillColor(sf::Color::White);
 
-        sf::Text stars("Stars: " + std::to_string(state.currentStars), font, 18);
+        sf::Text stars("Stars: " + std::to_string(state.currentStars), font, 16);
         stars.setPosition(10, 70);
         stars.setFillColor(sf::Color::Yellow);
 
-        sf::Text pb("PB Stars: " + std::to_string(state.pbStars), font, 18);
+        sf::Text pb("PB Stars: " + std::to_string(state.pbStars), font, 16);
         pb.setPosition(10, 100);
         pb.setFillColor(sf::Color::Green);
         std::cout << "Drawing text: " << title.getString().toAnsiString() << std::endl;
+
+        sf::Text currentSeed("Current Seed: " + std::to_string(state.currentSeed), font, 16);
+        currentSeed.setPosition(10, 130);
+        currentSeed.setFillColor(sf::Color::Magenta);
         // Update the song title text
        
         sf::Text songTitle("Song:" + songName, font, 18);
-        songTitle.setPosition(10, 130);
+        rect = GetProject64WindowRect();
+        sf::Vector2u overlaySize = window.getSize(); // SFML overlay size
+
+        // Calculate actual width and height of the emulator window
+        float emulatorWidth = static_cast<float>(rect.right - rect.left);
+        float emulatorHeight = static_cast<float>(rect.bottom - rect.top);
+
+        // Calculate scaling ratios (important for fullscreen/windowed discrepancies)
+        float scaleX = overlaySize.x / emulatorWidth;
+        float scaleY = overlaySize.y / emulatorHeight;
+
+        // Calculate Correct Position for Bottom-Right Corner
+        float x = emulatorWidth - (songTitle.getGlobalBounds().width / scaleX) - 10;
+        float y = emulatorHeight - (songTitle.getGlobalBounds().height / scaleY) - 10;
+
+        // Set Position with Scaling Applied
+        songTitle.setPosition(x* scaleX, y* scaleY);
+
         songTitle.setFillColor(sf::Color::Cyan);
         songTitle.setString("Song: " + songName);
         std::cout << "Rendering frame..." << std::endl;  // Debugging output
@@ -543,6 +566,7 @@ void renderOverlay() {
         window.draw(stars);
         window.draw(pb);
         window.draw(songTitle);
+        window.draw(currentSeed);
         window.display();
     }
 
