@@ -14,7 +14,7 @@
 
 // Memory Addresses
 struct MEM {
-    static constexpr uintptr_t MARIO_BASE = 0x8033B170;
+    static constexpr uintptr_t MARIO_BASE = 0xDFE70000;
     static constexpr uintptr_t HUD_BASE = 0xE00103E4;
     static constexpr uintptr_t CURRENT_LEVEL_ID = 0xDFFFFD7A;
     static constexpr uintptr_t CURRENT_SEED = 0xDFEBCDCC;
@@ -41,7 +41,7 @@ struct CONFIG {
         static const std::unordered_map<int, std::string> SONG_MAP;
     };
     struct LEVEL_DATA {
-        static const std::unordered_map<int, std::string> LEVEL_MAP;
+        static const std::unordered_map<int, std::pair<std::string, std::string>> LEVEL_MAP;
     };
 };
 
@@ -204,7 +204,38 @@ const std::unordered_map<int, std::string> CONFIG::MUSIC_DATA::SONG_MAP = {
 {166, "Undertale - Waterfall"}
 };
 
-
+const std::unordered_map<int, std::pair<std::string, std::string>> CONFIG::LEVEL_DATA::LEVEL_MAP = {
+    {0, {"", ""}},
+    {1, {"Menu", "Menu"}},
+    {10, {"Snowman's Land", "SL"}},
+    {11, {"Wet-Dry World", "WDW"}},
+    {12, {"Jolly Roger Bay", "JRB"}},
+    {13, {"Tiny-Huge Island", "THI"}},
+    {14, {"Tick Tock Clock", "TTC"}},
+    {15, {"Rainbow Ride", "RR"}},
+    {16, {"Outside Castle", "Outside"}},
+    {17, {"Bowser in the Dark World", "BitDW"}},
+    {18, {"Vanish Cap Under the Moat", "Vanish"}},
+    {19, {"Bowser in the Fire Sea", "BitFS"}},
+    {20, {"Secret Aquarium", "SA"}},
+    {22, {"Lethal Lava Land", "LLL"}},
+    {23, {"Dire, Dire Docks", "DDD"}},
+    {24, {"Whomp's Fortress", "WF"}},
+    {26, {"Garden", "Garden"}},
+    {27, {"Peach's Slide", "PSS"}},
+    {28, {"Cavern of the Metal Cap", "Metal"}},
+    {29, {"Tower of the Wing Cap", "Wing"}},
+    {30, {"Bowser Fight 1", "Bowser1"}},
+    {31, {"Wing Mario Over the Rainbow", "WMotR"}},
+    {36, {"Tall Tall Mountain", "TTM"}},
+    {3626007, {"Bowser in the Sky", "BitS"}},
+    {4, {"Big Boo's Haunt", "BBH"}},
+    {5, {"Cool Cool Mountain", "CCM"}},
+    {6, {"Castle", "Castle"}},
+    {7, {"Hazy Maze Cave", "HMC"}},
+    {8, {"Shifting Sand Land", "SSL"}},
+    {9, {"Bob-Omb Battlefield", "BoB"}}
+};
 
 
 // Function to convert wide string (WCHAR) to std::string
@@ -296,10 +327,21 @@ RunState state;
 
 void readAttemptsFile() {
     std::ifstream file("attempts.txt");
+    if (!file) {  // File does not exist, create it
+        std::ofstream newFile("attempts.txt");
+        if (newFile) {
+            newFile << "0";  // Initialize with default value
+            newFile.close();
+        }
+    }
+    file.close();
+
+    // Reopen to read value
+    file.open("attempts.txt");
     if (file) {
         file >> state.attempts;
-        file.close();
     }
+    file.close();
 }
 
 void writeAttemptsFile() {
@@ -312,10 +354,21 @@ void writeAttemptsFile() {
 
 void readPBStarsFile() {
     std::ifstream file("pb_stars.txt");
+    if (!file) {  // File does not exist, create it
+        std::ofstream newFile("pb_stars.txt");
+        if (newFile) {
+            newFile << "0";  // Initialize with default value
+            newFile.close();
+        }
+    }
+    file.close();
+
+    // Reopen to read value
+    file.open("pb_stars.txt");
     if (file) {
         file >> state.pbStars;
-        file.close();
     }
+    file.close();
 }
 
 void writePBStarsFile() {
@@ -328,15 +381,30 @@ void writePBStarsFile() {
 
 void readConfig() {
     std::ifstream file("config.json");
+    if (!file) {  // File does not exist, create it
+        std::ofstream newFile("config.json");
+        if (newFile) {
+            Json::Value root;
+            root["BACKGROUND_IMAGE"] = "(None)";
+            root["SHOW_SONG_TITLE"] = false;
+
+            Json::StreamWriterBuilder builder;
+            newFile << Json::writeString(builder, root);
+            newFile.close();
+        }
+    }
+    file.close();
+
+    // Reopen to read value
+    file.open("config.json");
     if (file) {
         Json::Value root;
         file >> root;
-        config.backgroundImage = root.get("BACKGROUND_IMAGE", "").asString(); // Default to empty string
-        config.showSongTitle = root.get("SHOW_SONG_TITLE", false).asBool(); // Default to false
-        file.close();
+        config.backgroundImage = root.get("BACKGROUND_IMAGE", "(None)").asString();
+        config.showSongTitle = root.get("SHOW_SONG_TITLE", false).asBool();
     }
+    file.close();
 }
-
 void writeConfig() {
     Json::Value root;
     root["BACKGROUND_IMAGE"] = config.backgroundImage;
@@ -363,7 +431,7 @@ void checkForNewAttempt() {
     }
 
     if (isDead && marioAction == MARIO_SPAWNING) {
-        // Mario has respawned -> count as a new attempt
+        // Only increase attempt count when a new run starts
         state.attempts++;
         std::cout << "New attempt started! Total attempts: " << state.attempts << std::endl;
         writeAttemptsFile();  // Save immediately
@@ -495,16 +563,24 @@ void renderOverlay() {
                 << " to " << state.currentStars << std::endl;
             state.pbStars = state.currentStars;
         }
-
-        // Increment attempts when a new run starts
-        state.attempts++;
-        std::cout << "New attempt recorded. Total attempts: " << state.attempts << std::endl;
          
         // Read the current song ID & Get Current Star Count
         int currentSongID = readMemory(MEM::CURRENT_SONG_ID);
         state.currentStars = readMemory(CONFIG::MEM_HUD::STARS);
         state.currentSeed = readMemory(MEM::CURRENT_SEED);
 
+        // Read Intended and Current Level
+        int intendedLevelID = readMemory(MEM::INTENDED_LEVEL_ID);
+        int currentLevelID = readMemory(MEM::CURRENT_LEVEL_ID);
+
+            // Convert IDs to names
+            std::string intendedLevel = "Unknown";
+            std::string currentLevel = "Unknown";
+
+            auto intendedIt = CONFIG::LEVEL_DATA::LEVEL_MAP.find(intendedLevelID);
+            if (intendedIt != CONFIG::LEVEL_DATA::LEVEL_MAP.end()) {
+                intendedLevel = intendedIt->second.first;
+        }
         // Find the song title in SONG_MAP
         std::string songName = "Unknown Song";
         auto it = CONFIG::MUSIC_DATA::SONG_MAP.find(currentSongID);
@@ -532,6 +608,14 @@ void renderOverlay() {
         sf::Text currentSeed("Current Seed: " + std::to_string(state.currentSeed), font, 16);
         currentSeed.setPosition(10, 130);
         currentSeed.setFillColor(sf::Color::Magenta);
+
+        // Combine intended and current level into one string
+        std::string levelDisplay = "Intended: " + intendedLevel + "  =  Current: " + currentLevel;
+        sf::Text levelText(levelDisplay, font, 16);
+        levelText.setPosition(10, 160);  // Adjust position as needed
+        levelText.setFillColor(sf::Color::White);
+
+
         // Update the song title text
        
         sf::Text songTitle("Song:" + songName, font, 18);
@@ -567,6 +651,7 @@ void renderOverlay() {
         window.draw(pb);
         window.draw(songTitle);
         window.draw(currentSeed);
+        // window.draw(levelText);
         window.display();
     }
 
