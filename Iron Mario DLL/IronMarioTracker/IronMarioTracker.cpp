@@ -1,4 +1,4 @@
-#include <SFML/Graphics.hpp>
+﻿#include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
 #include <iostream>
 #include <fstream>
@@ -461,20 +461,28 @@ HWND FindProject64Window() {
 }
 // Function to get Project64's window RECT dynamically
 RECT GetProject64WindowRect() {
-    HWND hwnd = FindProject64Window(); // Get the Project64 window dynamically
-    RECT clientRect = { 0, 0, 800, 600 }; // Default if not found
+    HWND hwnd = FindProject64Window();
+    RECT clientRect = { 0, 0, 800, 600 }; // Default fallback size
 
     if (hwnd) {
-        GetClientRect(hwnd, &clientRect); // Get the internal render area (ignores borders/menus)
-        POINT topLeft = { clientRect.left, clientRect.top };
-        ClientToScreen(hwnd, &topLeft); // Convert relative coordinates to screen coordinates
+        GetClientRect(hwnd, &clientRect);
+        POINT topLeft = { 0, 0 };
+        ClientToScreen(hwnd, &topLeft); // Convert relative coords to screen coords
 
-        // Update rect with absolute screen position
+        // Ensure the rect is properly updated
         clientRect.left = topLeft.x;
         clientRect.top = topLeft.y;
+        clientRect.right += topLeft.x;
+        clientRect.bottom += topLeft.y;
+
+        // Prevent negative values
+        if (clientRect.right < clientRect.left || clientRect.bottom < clientRect.top) {
+            std::cerr << "Invalid rect detected, using fallback values!" << std::endl;
+            clientRect = { 0, 0, 800, 600 }; // Reset to default
+        }
     }
     else {
-        std::cerr << "Project64 render area not found!" << std::endl;
+        std::cerr << "Project64 window not found! Using fallback size." << std::endl;
     }
     return clientRect;
 }
@@ -620,23 +628,19 @@ void renderOverlay() {
        
         sf::Text songTitle("Song:" + songName, font, 18);
         rect = GetProject64WindowRect();
-        sf::Vector2u overlaySize = window.getSize(); // SFML overlay size
+float emulatorWidth = std::max(800.0f, static_cast<float>(rect.right - rect.left));
+float emulatorHeight = std::max(600.0f, static_cast<float>(rect.bottom - rect.top));
 
-        // Calculate actual width and height of the emulator window
-        float emulatorWidth = static_cast<float>(rect.right - rect.left);
-        float emulatorHeight = static_cast<float>(rect.bottom - rect.top);
+// Make sure SFML correctly positions text in both windowed & fullscreen modes
+float x = emulatorWidth - songTitle.getGlobalBounds().width - 20;
+float y = emulatorHeight - songTitle.getGlobalBounds().height - 20;
 
-        // Calculate scaling ratios (important for fullscreen/windowed discrepancies)
-        float scaleX = overlaySize.x / emulatorWidth;
-        float scaleY = overlaySize.y / emulatorHeight;
+// Prevent negative values
+x = std::max(10.0f, x);
+y = std::max(10.0f, y);
 
-        // Calculate Correct Position for Bottom-Right Corner
-        float x = emulatorWidth - (songTitle.getGlobalBounds().width / scaleX) - 10;
-        float y = emulatorHeight - (songTitle.getGlobalBounds().height / scaleY) - 10;
-
-        // Set Position with Scaling Applied
-        songTitle.setPosition(x* scaleX, y* scaleY);
-
+songTitle.setPosition(x, y);
+        // songTitle.setPosition(100, 100);
         songTitle.setFillColor(sf::Color::Cyan);
         songTitle.setString("Song: " + songName);
         std::cout << "Rendering frame..." << std::endl;  // Debugging output
