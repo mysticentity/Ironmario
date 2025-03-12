@@ -47,27 +47,27 @@ struct CONFIG {
 
 
 const std::unordered_map<int, std::string> CONFIG::MUSIC_DATA::SONG_MAP = {
-    {12, "Super Mario 64 - Endless Staircase"},
-    {13, "Super Mario 64 - Merry-Go-Round"},
-    {14, "Super Mario 64 - Title Theme"},
-    {15, "Super Mario 64 - Bob-omb Battlefield"},
-    {16, "Super Mario 64 - Inside the Castle Walls"},
-    {17, "Super Mario 64 - Dire, Dire Docks"},
-    {18, "Super Mario 64 - Lethal Lava Land"},
-    {19, "Super Mario 64 - Koopa's Theme"},
-    {20, "Super Mario 64 - Snow Mountain"},
-    {21, "Super Mario 64 - Slider"},
-    {22, "Super Mario 64 - Haunted House"},
-    {23, "Super Mario 64 - Piranha Plant's Lullaby"},
-    {24, "Super Mario 64 - Cave Dungeon"},
-    {25, "Super Mario 64 - Powerful Mario"},
-    {26, "Super Mario 64 - Metallic Mario"},
-    {27, "Super Mario 64 - Koopa's Road"},
-    {28, "Race Fanfare"},
-    {29, "Super Mario 64 - Stage Boss"},
-    {30, "Super Mario 64 - Ultimate Koopa"},
-    {31, "Super Mario 64 - File Select"},
-    {32, "Super Mario 64 - Powerful Mario"},
+{12, "Super Mario 64 - Endless Staircase"},
+{13, "Super Mario 64 - Merry-Go-Round"},
+{14, "Super Mario 64 - Title Theme"},
+{15, "Super Mario 64 - Bob-omb Battlefield"},
+{16, "Super Mario 64 - Inside the Castle Walls"},
+{17, "Super Mario 64 - Dire, Dire Docks"},
+{18, "Super Mario 64 - Lethal Lava Land"},
+{19, "Super Mario 64 - Koopa's Theme"},
+{20, "Super Mario 64 - Snow Mountain"},
+{21, "Super Mario 64 - Slider"},
+{22, "Super Mario 64 - Haunted House"},
+{23, "Super Mario 64 - Piranha Plant's Lullaby"},
+{24, "Super Mario 64 - Cave Dungeon"},
+{25, "Super Mario 64 - Powerful Mario"},
+{26, "Super Mario 64 - Metallic Mario"},
+{27, "Super Mario 64 - Koopa's Road"},
+{28, "Race Fanfare"},
+{29, "Super Mario 64 - Stage Boss"},
+{30, "Super Mario 64 - Ultimate Koopa"},
+{31, "Super Mario 64 - File Select"},
+{32, "Super Mario 64 - Powerful Mario"},
 {33, "Super Mario 64 - Title Theme"},
 {34, "Bomberman 64 - Green Garden"},
 {35, "Bomberman 64 - Blue Resort"},
@@ -627,20 +627,8 @@ void renderOverlay() {
         // Update the song title text
        
         sf::Text songTitle("Song:" + songName, font, 18);
-        rect = GetProject64WindowRect();
-float emulatorWidth = std::max(800.0f, static_cast<float>(rect.right - rect.left));
-float emulatorHeight = std::max(600.0f, static_cast<float>(rect.bottom - rect.top));
-
-// Make sure SFML correctly positions text in both windowed & fullscreen modes
-float x = emulatorWidth - songTitle.getGlobalBounds().width - 20;
-float y = emulatorHeight - songTitle.getGlobalBounds().height - 20;
-
-// Prevent negative values
-x = std::max(10.0f, x);
-y = std::max(10.0f, y);
-
-songTitle.setPosition(x, y);
-        // songTitle.setPosition(100, 100);
+        
+        songTitle.setPosition(340, 420);
         songTitle.setFillColor(sf::Color::Cyan);
         songTitle.setString("Song: " + songName);
         std::cout << "Rendering frame..." << std::endl;  // Debugging output
