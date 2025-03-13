@@ -14,13 +14,13 @@
 
 // Memory Addresses
 struct MEM {
-    static constexpr uintptr_t MARIO_BASE = 0xDFE70000;
-    static constexpr uintptr_t HUD_BASE = 0xE00103E4;
-    static constexpr uintptr_t CURRENT_LEVEL_ID = 0xDFFFFD7A;
+    static constexpr uintptr_t MARIO_BASE = 0xFD540340;
+    static constexpr uintptr_t HUD_BASE = 0xFD540334;
+    static constexpr uintptr_t CURRENT_LEVEL_ID = 0xFD53F728;
     static constexpr uintptr_t CURRENT_SEED = 0xDFEBCDCC;
     static constexpr uintptr_t DELAYED_WARP_OP = 0x1a031c;
     static constexpr uintptr_t INTENDED_LEVEL_ID = 0x19f0cc;
-    static constexpr uintptr_t CURRENT_SONG_ID = 0xDFF0F438;
+    static constexpr uintptr_t CURRENT_SONG_ID = 0xFD53EB3C;
     
 };
 
@@ -418,8 +418,8 @@ void writeConfig() {
     }
 }
 
-#define MARIO_DEAD 0x00090013      // Example death state (adjust if needed)
-#define MARIO_SPAWNING 0x000C0000  // Example respawn state (adjust if needed)
+#define MARIO_DEAD 0xFD54035A      // Example death state (adjust if needed)
+#define MARIO_SPAWNING 0xFD54034E  // Example respawn state (adjust if needed)
 
 bool isDead = false;  // Track if Mario was in a death state
 
