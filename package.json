@@ -1,9 +1,0 @@
-{
-  "name": "my-electron-app",
-  "version": "1.0.0",
-  "description": "IronTracker",
-  "main": "electron.js",
-  "scripts": {
-    "start": "electron ."
-  }
-}
