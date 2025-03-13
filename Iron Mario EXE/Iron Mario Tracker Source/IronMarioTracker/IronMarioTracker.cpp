@@ -618,7 +618,7 @@ void renderOverlay() {
         currentSeed.setFillColor(sf::Color::Magenta);
 
         // Combine intended and current level into one string
-        std::string levelDisplay = "Intended: " + intendedLevel + "  =  Current: " + currentLevel;
+        std::string levelDisplay = "Intended: " + intendedLevel + "  >  Current: " + currentLevel;
         sf::Text levelText(levelDisplay, font, 16);
         levelText.setPosition(10, 160);  // Adjust position as needed
         levelText.setFillColor(sf::Color::White);
