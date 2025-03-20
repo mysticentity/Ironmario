@@ -14,13 +14,13 @@
 
 // Memory Addresses
 struct MEM {
-    static constexpr uintptr_t MARIO_BASE = 0xFD540340;
-    static constexpr uintptr_t HUD_BASE = 0xFD540334;
-    static constexpr uintptr_t CURRENT_LEVEL_ID = 0xFD53F728;
-    static constexpr uintptr_t CURRENT_SEED = 0xDFEBCDCC;
+    static constexpr uintptr_t MARIO_BASE = 0x1a0340;
+    static constexpr uintptr_t HUD_BASE = 0x1a0330;
+    static constexpr uintptr_t CURRENT_LEVEL_ID = 0x18fd78;
+    static constexpr uintptr_t CURRENT_SEED = 0x1cdf80;
     static constexpr uintptr_t DELAYED_WARP_OP = 0x1a031c;
     static constexpr uintptr_t INTENDED_LEVEL_ID = 0x19f0cc;
-    static constexpr uintptr_t CURRENT_SONG_ID = 0xFD53EB3C;
+    static constexpr uintptr_t CURRENT_SONG_ID = 0x0a3781;
     
 };
 
@@ -247,10 +247,8 @@ std::string WideToString(const std::wstring& wideStr) {
 }
 
 // Function to get the PID of Project64
-DWORD GetProject64PID() {
-   
+DWORD GetParaLLEl64PID() {
     DWORD pid = 0;
-    std::cout << "Project64 PID: " << pid << std::endl;
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
         std::cerr << "Failed to create process snapshot." << std::endl;
@@ -262,16 +260,12 @@ DWORD GetProject64PID() {
 
     if (Process32First(hSnapshot, &pe)) {
         do {
-            std::string processName = WideToString(pe.szExeFile); // Convert WCHAR to std::string
-
-            if (processName.find("Project64.exe") !=std::string::npos) {  // Adjust if your emulator has a different name
+            std::wstring processName(pe.szExeFile);
+            if (processName.find(L"retroarch.exe") != std::wstring::npos) { // Adjust if the process name differs
                 pid = pe.th32ProcessID;
                 break;
             }
         } while (Process32Next(hSnapshot, &pe));
-    }
-    else {
-        std::cerr << "Failed to retrieve process list." << std::endl;
     }
 
     CloseHandle(hSnapshot);
@@ -279,24 +273,19 @@ DWORD GetProject64PID() {
 }
 
 // Function to read memory from Project64
-int readMemory(uintptr_t address) {
+int ReadIntegerFromMemory(DWORD address) {
+    HANDLE hProcess = OpenProcess(PROCESS_VM_READ, FALSE, GetParaLLEl64PID());
+    if (hProcess == NULL) {
+        std::cerr << "Failed to open ParaLLEl64 process." << std::endl;
+        return -1;
+    }
+
     int value = 0;
     SIZE_T bytesRead;
-
-    DWORD pid = GetProject64PID();  // Call the function here
-    if (pid == 0) {
-        std::cerr << "Project64 process not found!" << std::endl;
-        return -1;
-    }
-
-    HANDLE hProcess = OpenProcess(PROCESS_VM_READ, FALSE, pid);
-    if (!hProcess) {
-        std::cerr << "Failed to open Project64 process." << std::endl;
-        return -1;
-    }
-
     if (!ReadProcessMemory(hProcess, (LPCVOID)address, &value, sizeof(value), &bytesRead)) {
-        std::cerr << "Failed to read memory at " << std::hex << address << std::endl;
+        std::cerr << "Failed to read memory." << std::endl;
+        CloseHandle(hProcess);
+        return -1;
     }
 
     CloseHandle(hProcess);
@@ -424,7 +413,7 @@ void writeConfig() {
 bool isDead = false;  // Track if Mario was in a death state
 
 void checkForNewAttempt() {
-    int marioAction = readMemory(CONFIG::MEM_MARIO::ACTION);
+    int marioAction = ReadIntegerFromMemory(CONFIG::MEM_MARIO::ACTION);
 
     if (marioAction == MARIO_DEAD) {
         isDead = true;  // Mark Mario as dead
@@ -440,51 +429,46 @@ void checkForNewAttempt() {
     }
 }
 // Function to find the Project64 window dynamically
-HWND FindProject64Window() {
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+    wchar_t windowTitle[256];
+    GetWindowText(hwnd, windowTitle, sizeof(windowTitle) / sizeof(wchar_t));
+
+    std::wstring targetTitle = L"RetroArch ParaLLEl N64";
+    if (std::wstring(windowTitle).find(targetTitle) != std::wstring::npos) {
+        *(HWND*)lParam = hwnd;
+        return FALSE; // Stop when found
+    }
+    return TRUE;
+}
+
+HWND FindRetroArchWindow() {
     HWND hwnd = NULL;
-    // Callback function to search for a matching window
-    auto EnumWindowsCallback = [](HWND hWnd, LPARAM lParam) -> BOOL {
-        const int bufferSize = 256;
-        wchar_t windowTitle[bufferSize];
-        GetWindowTextW(hWnd, windowTitle, bufferSize);
+    EnumWindows(EnumWindowsProc, (LPARAM)&hwnd);
 
-        std::wstring title(windowTitle);
-        if (title.find(L"Project64") != std::wstring::npos) { // Checks if "Project64" is in the title
-            *reinterpret_cast<HWND*>(lParam) = hWnd;
-            return FALSE; // Stop enumeration
-        }
-        return TRUE; // Continue searching
-        };
-
-    EnumWindows(EnumWindowsCallback, reinterpret_cast<LPARAM>(&hwnd));
+    if (!hwnd) {
+        std::cerr << "RetroArch window not found!" << std::endl;
+    }
     return hwnd;
 }
-// Function to get Project64's window RECT dynamically
-RECT GetProject64WindowRect() {
-    HWND hwnd = FindProject64Window();
-    RECT clientRect = { 0, 0, 800, 600 }; // Default fallback size
+
+RECT GetRetroArchGameWindowRect() {
+    HWND hwnd = FindRetroArchWindow();
+    RECT rect = { 0, 0, 800, 600 }; // Default size if not found
 
     if (hwnd) {
-        GetClientRect(hwnd, &clientRect);
-        POINT topLeft = { 0, 0 };
-        ClientToScreen(hwnd, &topLeft); // Convert relative coords to screen coords
-
-        // Ensure the rect is properly updated
-        clientRect.left = topLeft.x;
-        clientRect.top = topLeft.y;
-        clientRect.right += topLeft.x;
-        clientRect.bottom += topLeft.y;
-
-        // Prevent negative values
-        if (clientRect.right < clientRect.left || clientRect.bottom < clientRect.top) {
-            std::cerr << "Invalid rect detected, using fallback values!" << std::endl;
-            clientRect = { 0, 0, 800, 600 }; // Reset to default
-        }
+        GetClientRect(hwnd, &rect);
+        MapWindowPoints(hwnd, NULL, (LPPOINT)&rect, 2);
     }
     else {
-        std::cerr << "Project64 window not found! Using fallback size." << std::endl;
+        std::cerr << "Failed to get RetroArch game window rect." << std::endl;
     }
-    return clientRect;
+
+    std::cout << "Game Window Rect: left=" << rect.left
+        << ", top=" << rect.top
+        << ", width=" << rect.right - rect.left
+        << ", height=" << rect.bottom - rect.top << std::endl;
+
+    return rect;
 }
 void renderOverlay() {
     std::cout << "Creating overlay window..." << std::endl;
@@ -543,12 +527,13 @@ void renderOverlay() {
     while (window.isOpen()) {
         std::cout << "Inside render loop..." << std::endl;
         checkForNewAttempt(); // Now only updates on real deaths
-       RECT rect = GetProject64WindowRect(); // Get game render area
+
+       RECT rect = GetRetroArchGameWindowRect(); // Get game render area
         window.setPosition(sf::Vector2i(rect.left, rect.top)); // Move overlay to game position
 
         // Keep overlay on top
         HWND overlayHwnd = window.getSystemHandle();
-        SetWindowPos(overlayHwnd, HWND_TOPMOST, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+        SetWindowPos(overlayHwnd, HWND_TOPMOST, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW |SWP_NOACTIVATE);
 
         window.setPosition(sf::Vector2i(rect.left, rect.top)); // Move overlay to game position
         sf::Event event;
@@ -559,7 +544,7 @@ void renderOverlay() {
         }
 
         // Close overlay if Project64 is closed
-        if (GetProject64PID() == 0) {
+        if (GetParaLLEl64PID() == 0) {
             std::cout << "Project64 closed! Closing overlay." << std::endl;
             window.close();
 
@@ -573,13 +558,13 @@ void renderOverlay() {
         }
          
         // Read the current song ID & Get Current Star Count
-        int currentSongID = readMemory(MEM::CURRENT_SONG_ID);
-        state.currentStars = readMemory(CONFIG::MEM_HUD::STARS);
-        state.currentSeed = readMemory(MEM::CURRENT_SEED);
+        int currentSongID = ReadIntegerFromMemory(MEM::CURRENT_SONG_ID);
+        state.currentStars = ReadIntegerFromMemory(CONFIG::MEM_HUD::STARS);
+        state.currentSeed = ReadIntegerFromMemory(MEM::CURRENT_SEED);
 
         // Read Intended and Current Level
-        int intendedLevelID = readMemory(MEM::INTENDED_LEVEL_ID);
-        int currentLevelID = readMemory(MEM::CURRENT_LEVEL_ID);
+        int intendedLevelID = ReadIntegerFromMemory(MEM::INTENDED_LEVEL_ID);
+        int currentLevelID = ReadIntegerFromMemory(MEM::CURRENT_LEVEL_ID);
 
             // Convert IDs to names
             std::string intendedLevel = "Unknown";
@@ -618,20 +603,23 @@ void renderOverlay() {
         currentSeed.setFillColor(sf::Color::Magenta);
 
         // Combine intended and current level into one string
-        std::string levelDisplay = "Intended: " + intendedLevel + "  >  Current: " + currentLevel;
+        std::string levelDisplay = "Intended: " + intendedLevel + "  =  Current: " + currentLevel;
         sf::Text levelText(levelDisplay, font, 16);
         levelText.setPosition(10, 160);  // Adjust position as needed
         levelText.setFillColor(sf::Color::White);
 
 
         // Update the song title text
-       
-        sf::Text songTitle("Song:" + songName, font, 18);
-        
-        songTitle.setPosition(340, 420);
+        sf::Text songTitle("Song: " + songName, font, 18);
+        // Get the game window size
+        sf::Vector2u windowSize = window.getSize();
+
+        // Position at bottom left of the game window
+        float xPos = 10.f; // Small padding from the left edge
+        float yPos = windowSize.y - songTitle.getLocalBounds().height - 10.f; // Small padding from the bottom edge
+        songTitle.setPosition(xPos, yPos);
         songTitle.setFillColor(sf::Color::Cyan);
-        songTitle.setString("Song: " + songName);
-        std::cout << "Rendering frame..." << std::endl;  // Debugging output
+
 
         
 
@@ -643,7 +631,7 @@ void renderOverlay() {
         window.draw(pb);
         window.draw(songTitle);
         window.draw(currentSeed);
-        // window.draw(levelText);
+        window.draw(levelText);
         window.display();
     }
 
