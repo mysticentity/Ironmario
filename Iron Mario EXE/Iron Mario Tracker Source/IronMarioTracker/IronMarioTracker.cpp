@@ -9,18 +9,19 @@
 #include <windows.h>
 #include <unordered_map>
 #include <tlhelp32.h>
+#include <vector>
 #ifdef _WIN32
 
 
 // Memory Addresses
 struct MEM {
-    static constexpr uintptr_t MARIO_BASE = 0x1a0340;
-    static constexpr uintptr_t HUD_BASE = 0x1a0330;
-    static constexpr uintptr_t CURRENT_LEVEL_ID = 0x18fd78;
-    static constexpr uintptr_t CURRENT_SEED = 0x1cdf80;
-    static constexpr uintptr_t DELAYED_WARP_OP = 0x1a031c;
-    static constexpr uintptr_t INTENDED_LEVEL_ID = 0x19f0cc;
-    static constexpr uintptr_t CURRENT_SONG_ID = 0x0a3781;
+    static constexpr uintptr_t MARIO_BASE = 0x7FFC39900000;
+    static constexpr uintptr_t HUD_BASE = 0x7FFC39900000;
+    static constexpr uintptr_t CURRENT_LEVEL_ID = 0x7FFC39900000;
+    static constexpr uintptr_t CURRENT_SEED = 0x7FFC39900000;
+    static constexpr uintptr_t DELAYED_WARP_OP = 0x7FFC39900000;
+    static constexpr uintptr_t INTENDED_LEVEL_ID = 0x7FFC39900000;
+    static constexpr uintptr_t CURRENT_SONG_ID = 0x7FFC3993A438;
     
 };
 
@@ -33,8 +34,8 @@ struct CONFIG {
     };
 
     struct MEM_HUD {
-        static constexpr uintptr_t STARS = MEM::HUD_BASE + 0x4;
-        static constexpr uintptr_t HEALTH = MEM::HUD_BASE + 0x6;
+        static constexpr uintptr_t STARS = MEM::HUD_BASE + 0xDDD0;
+        static constexpr uintptr_t HEALTH = MEM::HUD_BASE + 0x8B000;
     };
 
     struct MUSIC_DATA {
@@ -272,18 +273,31 @@ DWORD GetParaLLEl64PID() {
     return pid;
 }
 
-// Function to read memory from Project64
-int ReadIntegerFromMemory(DWORD address) {
+int ReadIntegerFromMemory(uintptr_t address) {
     HANDLE hProcess = OpenProcess(PROCESS_VM_READ, FALSE, GetParaLLEl64PID());
     if (hProcess == NULL) {
         std::cerr << "Failed to open ParaLLEl64 process." << std::endl;
         return -1;
     }
 
-    int value = 0;
+    uintptr_t firstRead = 0;
     SIZE_T bytesRead;
+
+    // First, check if the address contains a pointer
+    if (!ReadProcessMemory(hProcess, (LPCVOID)address, &firstRead, sizeof(firstRead), &bytesRead) || bytesRead != sizeof(firstRead)) {
+        std::cerr << "Failed to read memory at base address." << std::endl;
+        CloseHandle(hProcess);
+        return -1;
+    }
+
+    // If it's a valid pointer (typically > 0x10000 in user-mode memory), dereference it
+    if (firstRead > 0x10000 && firstRead < 0x7FFFFFFF) {
+        address = firstRead;  // Follow the pointer
+    }
+
+    int value = 0;
     if (!ReadProcessMemory(hProcess, (LPCVOID)address, &value, sizeof(value), &bytesRead)) {
-        std::cerr << "Failed to read memory." << std::endl;
+        std::cerr << "Failed to read actual value from memory." << std::endl;
         CloseHandle(hProcess);
         return -1;
     }
@@ -470,26 +484,13 @@ RECT GetRetroArchGameWindowRect() {
 
     return rect;
 }
-void renderOverlay() {
-    std::cout << "Creating overlay window..." << std::endl;
 
-    // Create window (style set to None for transparency)
-    sf::RenderWindow window(sf::VideoMode(800, 600), "IronMario Tracker Overlay", sf::Style::None);
+std::vector<std::string> levelHistory;  // Stores the last N level transitions
+const size_t maxHistorySize = 30;  // Limit history to last 10 entries
 
-    if (!window.isOpen()) {
-        std::cerr << "Failed to create overlay window." << std::endl;
-        return;
-    }
-    std::cout << "Overlay window successfully created." << std::endl;
-
-    
-    std::cout << "Window size: " << window.getSize().x << "x" << window.getSize().y << std::endl;
-    std::cout << "Window position: " << window.getPosition().x << ", " << window.getPosition().y << std::endl;
-    // Get window handle
-    HWND hwnd = window.getSystemHandle();
+void ApplyTransparency(HWND hwnd) {
     LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
     SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT);
-    std::cout << "Applied WS_EX_LAYERED." << std::endl;
 
     if (!SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY)) {
         std::cerr << "Failed to apply transparency! Error: " << GetLastError() << std::endl;
@@ -497,45 +498,59 @@ void renderOverlay() {
     else {
         std::cout << "Transparency applied successfully." << std::endl;
     }
+}
 
 
-    // Load font
-   
-    sf::Font font;
-    
+void renderOverlay() {
+    std::cout << "Creating overlay window..." << std::endl;
+    RECT rect = GetRetroArchGameWindowRect();  // Get the target window dimensions
+    int width = rect.right - rect.left;
+    int height = rect.bottom - rect.top;
 
-    std::string fontPath = "C:\\Windows\\Fonts\\Arial.ttf";  // Full system path
+    // Create window (style set to None for transparency)
+    sf::RenderWindow window(sf::VideoMode(width, height), "IronMario Tracker Overlay", sf::Style::None);
 
-    std::cout << "Loading font from: " << fontPath << std::endl;
-    if (!font.loadFromFile(fontPath)) {
-        std::cerr << "Error loading font from system path: " << fontPath << std::endl;
+    if (!window.isOpen()) {
+        std::cerr << "Failed to create overlay window." << std::endl;
         return;
     }
+
+    std::cout << "Overlay window successfully created." << std::endl;
+    
+
+    // Apply transparency settings initially
+    ApplyTransparency(window.getSystemHandle());
+
+    // Load the font
+    sf::Font font;
+    std::string fontPath = "C:\\Windows\\Fonts\\Arial.ttf";
+    if (!font.loadFromFile(fontPath)) {
+        std::cerr << "Error loading font from: " << fontPath << std::endl;
+        return;
+    }
+
     std::cout << "Font loaded successfully." << std::endl;
 
-    
-
-    
-    // Test if pollEvent() is freezing
-    std::cout << "Polling event before loop..." << std::endl;
-    sf::Event event;
-    window.pollEvent(event);  // Single event poll test
-    std::cout << "Polling done." << std::endl;
-
-    std::cout << "Entering render loop..." << std::endl;
-
+    // Main render loop
     while (window.isOpen()) {
-        std::cout << "Inside render loop..." << std::endl;
-        checkForNewAttempt(); // Now only updates on real deaths
+        RECT newRect = GetRetroArchGameWindowRect();
+        int newWidth = newRect.right - newRect.left;
+        int newHeight = newRect.bottom - newRect.top;
 
-       RECT rect = GetRetroArchGameWindowRect(); // Get game render area
-        window.setPosition(sf::Vector2i(rect.left, rect.top)); // Move overlay to game position
+        // If window size changes, recreate and reapply transparency
+        if (newWidth != width || newHeight != height) {
+            width = newWidth;
+            height = newHeight;
+            window.create(sf::VideoMode(width, height), "IronMario Tracker Overlay", sf::Style::None);
 
-        // Keep overlay on top
-        HWND overlayHwnd = window.getSystemHandle();
-        SetWindowPos(overlayHwnd, HWND_TOPMOST, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW |SWP_NOACTIVATE);
+            // Reapply transparency after recreation
+            ApplyTransparency(window.getSystemHandle());
+        }
 
-        window.setPosition(sf::Vector2i(rect.left, rect.top)); // Move overlay to game position
+        // Position the overlay correctly
+        SetWindowPos(window.getSystemHandle(), HWND_TOPMOST, newRect.left, newRect.top, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+        window.setPosition(sf::Vector2i(newRect.left, newRect.top));
+
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
@@ -543,20 +558,19 @@ void renderOverlay() {
             }
         }
 
-        // Close overlay if Project64 is closed
+        // Close overlay if emulator is closed
         if (GetParaLLEl64PID() == 0) {
             std::cout << "Project64 closed! Closing overlay." << std::endl;
             window.close();
-
         }
-        
+
         // If current run has more stars than PB, update pbStars
         if (state.currentStars > state.pbStars) {
             std::cout << "New PB detected! Updating pbStars from " << state.pbStars
                 << " to " << state.currentStars << std::endl;
             state.pbStars = state.currentStars;
         }
-         
+
         // Read the current song ID & Get Current Star Count
         int currentSongID = ReadIntegerFromMemory(MEM::CURRENT_SONG_ID);
         state.currentStars = ReadIntegerFromMemory(CONFIG::MEM_HUD::STARS);
@@ -566,82 +580,94 @@ void renderOverlay() {
         int intendedLevelID = ReadIntegerFromMemory(MEM::INTENDED_LEVEL_ID);
         int currentLevelID = ReadIntegerFromMemory(MEM::CURRENT_LEVEL_ID);
 
-            // Convert IDs to names
-            std::string intendedLevel = "Unknown";
-            std::string currentLevel = "Unknown";
+        // Convert IDs to names
+        std::string intendedLevel = "Unknown";
+        std::string currentLevel = "Unknown";
 
-            auto intendedIt = CONFIG::LEVEL_DATA::LEVEL_MAP.find(intendedLevelID);
-            if (intendedIt != CONFIG::LEVEL_DATA::LEVEL_MAP.end()) {
-                intendedLevel = intendedIt->second.first;
+        auto intendedIt = CONFIG::LEVEL_DATA::LEVEL_MAP.find(intendedLevelID);
+        if (intendedIt != CONFIG::LEVEL_DATA::LEVEL_MAP.end()) {
+            intendedLevel = intendedIt->second.first;
         }
-        // Find the song title in SONG_MAP
-        std::string songName = "Unknown Song";
-        auto it = CONFIG::MUSIC_DATA::SONG_MAP.find(currentSongID);
-        if (it != CONFIG::MUSIC_DATA::SONG_MAP.end()) {
-            songName = it->second;
+        std::string levelEntry = intendedLevel + " = " + currentLevel;
+        // Append to history and maintain size limit
+        if (levelHistory.empty() || levelHistory.back() != levelEntry) {  // Avoid duplicate consecutive entries
+            levelHistory.push_back(levelEntry);
+            if (levelHistory.size() > maxHistorySize) {
+                levelHistory.erase(levelHistory.begin());  // Remove oldest entry
+            }
         }
-        
-        sf::Text title("IronMario Tracker v" + config.version, font, 20);
-        title.setPosition(10, 10);
-        title.setFillColor(sf::Color::White);
+               
+                
+                // Find the song title in SONG_MAP
+                std::string songName = "Unknown Song";
+                auto it = CONFIG::MUSIC_DATA::SONG_MAP.find(currentSongID);
+                if (it != CONFIG::MUSIC_DATA::SONG_MAP.end()) {
+                    songName = it->second;
+                }
 
-        sf::Text attempts("Attempts: " + std::to_string(state.attempts), font, 16);
-        attempts.setPosition(10, 40);
-        attempts.setFillColor(sf::Color::White);
+                sf::Text title("IronMario Tracker v" + config.version, font, 20);
+                title.setPosition(10, 10);
+                title.setFillColor(sf::Color::White);
 
-        sf::Text stars("Stars: " + std::to_string(state.currentStars), font, 16);
-        stars.setPosition(10, 70);
-        stars.setFillColor(sf::Color::Yellow);
+                sf::Text attempts("Attempts: " + std::to_string(state.attempts), font, 16);
+                attempts.setPosition(10, 40);
+                attempts.setFillColor(sf::Color::White);
 
-        sf::Text pb("PB Stars: " + std::to_string(state.pbStars), font, 16);
-        pb.setPosition(10, 100);
-        pb.setFillColor(sf::Color::Green);
-        std::cout << "Drawing text: " << title.getString().toAnsiString() << std::endl;
+                sf::Text stars("Stars: " + std::to_string(state.currentStars), font, 16);
+                stars.setPosition(10, 70);
+                stars.setFillColor(sf::Color::Yellow);
 
-        sf::Text currentSeed("Current Seed: " + std::to_string(state.currentSeed), font, 16);
-        currentSeed.setPosition(10, 130);
-        currentSeed.setFillColor(sf::Color::Magenta);
+                sf::Text pb("PB Stars: " + std::to_string(state.pbStars), font, 16);
+                pb.setPosition(10, 100);
+                pb.setFillColor(sf::Color::Green);
+                std::cout << "Drawing text: " << title.getString().toAnsiString() << std::endl;
 
-        // Combine intended and current level into one string
-        std::string levelDisplay = "Intended: " + intendedLevel + "  =  Current: " + currentLevel;
-        sf::Text levelText(levelDisplay, font, 16);
-        levelText.setPosition(10, 160);  // Adjust position as needed
-        levelText.setFillColor(sf::Color::White);
+                sf::Text currentSeed("Current Seed: " + std::to_string(state.currentSeed), font, 16);
+                currentSeed.setPosition(10, 130);
+                currentSeed.setFillColor(sf::Color::Magenta);
 
+                // Update the song title text
+                sf::Text songTitle("Song: " + songName, font, 18);
+                // Get the game window size
+                sf::Vector2u windowSize = window.getSize();
 
-        // Update the song title text
-        sf::Text songTitle("Song: " + songName, font, 18);
-        // Get the game window size
-        sf::Vector2u windowSize = window.getSize();
-
-        // Position at bottom left of the game window
-        float xPos = 10.f; // Small padding from the left edge
-        float yPos = windowSize.y - songTitle.getLocalBounds().height - 10.f; // Small padding from the bottom edge
-        songTitle.setPosition(xPos, yPos);
-        songTitle.setFillColor(sf::Color::Cyan);
+                // Position at bottom left of the game window
+                float xPos = 420.f; // Small padding from the left edge
+                float yPos = windowSize.y - songTitle.getLocalBounds().height - 10.f; // Small padding from the bottom edge
+                songTitle.setPosition(xPos, yPos);
+                songTitle.setFillColor(sf::Color::Cyan);
 
 
-        
 
-        
-        window.clear(sf::Color::Transparent);
-        window.draw(title);
-        window.draw(attempts);
-        window.draw(stars);
-        window.draw(pb);
-        window.draw(songTitle);
-        window.draw(currentSeed);
-        window.draw(levelText);
-        window.display();
-    }
 
-    std::cout << "Waiting before closing..." << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-    std::cout << "Exiting renderOverlay()..." << std::endl;
-    }
 
-    int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-        std::cout << "Starting IronMario Tracker..." << std::endl; // Debug message
+                window.clear(sf::Color::Transparent);
+                float yOffset = 160;
+
+                // Combine intended and current level into one string
+                for (const std::string& entry : levelHistory) {
+                    sf::Text levelText(entry, font, 16);
+                    levelText.setPosition(10, yOffset);  // Adjust position as needed
+                    levelText.setFillColor(sf::Color::White);
+                    window.draw(levelText);
+                    yOffset += 20;
+                }
+                window.draw(title);
+                window.draw(attempts);
+                window.draw(stars);
+                window.draw(pb);
+                window.draw(songTitle);
+                window.draw(currentSeed);
+                window.display();
+            }
+
+            std::cout << "Waiting before closing..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            std::cout << "Exiting renderOverlay()..." << std::endl;
+        }
+
+        int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+            std::cout << "Starting IronMario Tracker..." << std::endl; // Debug message
 #else
 int main() {
 #endif
@@ -651,7 +677,7 @@ int main() {
     readPBStarsFile();
     readConfig();
 
-    
+
     state.startTime = time(0);
 
     std::cout << "Calling renderOverlay()..." << std::endl; // Debug message
@@ -664,6 +690,4 @@ int main() {
     writePBStarsFile();
 
     return 0;
-}
-
-
+        }
